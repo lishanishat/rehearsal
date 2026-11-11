@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rehearsal</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#131a23; --panel2:#182230; --border:#243041;
+    --text:#e8eef5; --dim:#8ea0b5; --green:#2fd97a; --red:#ff5c5c;
+    --amber:#ffb347; --blue:#5aa7ff; --grey:#4a5668;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:20px 28px 40px; min-height:100vh;
+  }
+  .conn{
+    position:fixed; top:10px; right:16px; font-size:12px; color:var(--amber);
+    background:#241c0f; border:1px solid #4a3a16; padding:4px 10px; border-radius:20px;
+    display:none; z-index:50;
+  }
+  .conn.show{display:block;}
+
+  header{ text-align:center; margin-bottom:22px; }
+  .phase-label{
+    font-size:64px; font-weight:800; letter-spacing:1px; text-transform:uppercase;
+    line-height:1.05;
+  }
+  .phase-sub{ font-size:18px; color:var(--dim); margin-top:4px; }
+
+  .phase-idle{color:var(--grey);}
+  .phase-attacked{color:var(--red);}
+  .phase-forking{color:var(--amber);}
+  .phase-diagnosing{color:var(--blue);}
+  .phase-rehearsed{color:#3fd0c9;}
+  .phase-approved{color:var(--green);}
+  .phase-patched{color:var(--green);}
+
+  .grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:18px; max-width:1400px; margin:0 auto;
+  }
+  @media (max-width:980px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:18px 20px;
+  }
+  .panel h2{
+    margin:0 0 14px; font-size:14px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--dim); font-weight:700;
+  }
+
+  /* Freeze panel */
+  .freeze-row{ display:flex; gap:12px; margin-bottom:14px; }
+  .freeze-box{
+    flex:1; background:var(--panel2); border:1px solid var(--border); border-radius:10px;
+    padding:14px 10px; text-align:center;
+  }
+  .freeze-box .label{ font-size:13px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;}
+  .dot{
+    width:28px; height:28px; border-radius:50%; margin:0 auto 6px;
+    box-shadow:0 0 14px currentColor;
+  }
+  .dot.on{ background:var(--red); color:var(--red); }
+  .dot.off{ background:var(--green); color:var(--green); }
+  .freeze-box .state{ font-size:13px; font-weight:700; }
+  .freeze-box .state.on{ color:var(--red); }
+  .freeze-box .state.off{ color:var(--green); }
+  .pause-line{ font-size:16px; color:var(--text); }
+  .pause-line b{ color:var(--amber); font-size:20px; }
+
+  /* Prove panel */
+  .hyp-row{
+    display:flex; gap:10px; align-items:flex-start; padding:10px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .hyp-row:last-child{ border-bottom:none; }
+  .badge{
+    flex:0 0 auto; font-size:12px; font-weight:800; padding:3px 9px; border-radius:12px;
+    white-space:nowrap;
+  }
+  .badge.confirmed{ background:rgba(47,217,122,.15); color:var(--green); border:1px solid var(--green); }
+  .badge.refuted{ background:rgba(255,92,92,.15); color:var(--red); border:1px solid var(--red); }
+  .hyp-text{ font-size:14px; }
+  .hyp-claim{ font-weight:600; }
+  .hyp-url{ color:var(--dim); font-size:12px; word-break:break-all; }
+  .empty-note{ color:var(--dim); font-size:13px; font-style:italic; }
+  .searches-count{ color:var(--dim); font-size:13px; margin-top:10px; }
+
+  .replay-callout{
+    margin-top:14px; padding:14px; border-radius:10px; font-size:15px; font-weight:700;
+    line-height:1.4;
+  }
+  .replay-pending{ background:var(--panel2); color:var(--grey); border:1px dashed var(--border); font-weight:500; }
+  .replay-failed{ background:rgba(47,217,122,.12); color:var(--green); border:1px solid var(--green); }
+  .replay-succeeded{ background:rgba(255,92,92,.12); color:var(--red); border:1px solid var(--red); }
+
+  /* Operate panel */
+  .stat-row{ display:flex; gap:18px; margin-bottom:12px; }
+  .stat{ flex:1; }
+  .stat .num{ font-size:34px; font-weight:800; }
+  .stat .num.served{ color:var(--green); }
+  .stat .num.failed{ color:var(--red); }
+  .stat .lbl{ font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
+
+  svg.ticker{ width:100%; height:70px; display:block; background:var(--panel2); border-radius:8px; }
+
+  .controls{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; align-items:center; }
+  button{
+    font-size:15px; font-weight:700; padding:10px 18px; border-radius:8px; border:none;
+    cursor:pointer; transition:opacity .15s;
+  }
+  button:disabled{ opacity:.35; cursor:not-allowed; }
+  .btn-approve{ background:var(--green); color:#04210f; }
+  .btn-attack{ background:var(--red); color:#2b0505; }
+  select{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:9px 10px; font-size:14px;
+  }
+  .action-msg{ font-size:12px; color:var(--dim); margin-top:8px; min-height:16px; }
+</style>
+</head>
+<body>
+  <div class="conn" id="connIndicator">reconnecting…</div>
+
+  <header>
+    <div class="phase-label" id="phaseLabel">—</div>
+    <div class="phase-sub" id="phaseSub">waiting for status…</div>
+  </header>
+
+  <div class="grid">
+
+    <section class="panel">
+      <h2>Freeze — implant survives a fork, not a restart</h2>
+      <div class="freeze-row">
+        <div class="freeze-box">
+          <div class="label">Production</div>
+          <div class="dot" id="dotProd"></div>
+          <div class="state" id="stateProd">—</div>
+        </div>
+        <div class="freeze-box">
+          <div class="label">Clone</div>
+          <div class="dot" id="dotClone"></div>
+          <div class="state" id="stateClone"></div>
+        </div>
+        <div class="freeze-box">
+          <div class="label">Restarted copy</div>
+          <div class="dot" id="dotRestart"></div>
+          <div class="state" id="stateRestart"></div>
+        </div>
+      </div>
+      <div class="pause-line">Fork pause: <b id="forkPause">—</b></div>
+    </section>
+
+    <section class="panel">
+      <h2>Prove — hypotheses tested against the clone</h2>
+      <div id="hypList"><div class="empty-note">No hypotheses yet.</div></div>
+      <div class="searches-count" id="searchesCount"></div>
+      <div class="replay-callout replay-pending" id="replayCallout">Exploit replay against the fix: pending…</div>
+    </section>
+
+    <section class="panel">
+      <h2>Operate — live traffic on production</h2>
+      <div class="stat-row">
+        <div class="stat"><div class="num served" id="numServed">0</div><div class="lbl">requests served</div></div>
+        <div class="stat"><div class="num failed" id="numFailed">0</div><div class="lbl">requests failed</div></div>
+      </div>
+      <svg class="ticker" id="ticker" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+      <div class="controls">
+        <button class="btn-approve" id="approveBtn" disabled>Approve patch → production</button>
+      </div>
+      <div class="action-msg" id="approveMsg"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Attack — judge picks the exploit</h2>
+      <div class="controls">
+        <select id="variantSelect">
+          <option value="a">Payload A</option>
+          <option value="b">Payload B</option>
+        </select>
+        <button class="btn-attack" id="attackBtn">Launch Attack</button>
+      </div>
+      <div class="action-msg" id="attackMsg"></div>
+    </section>
+
+  </div>
+
+<script>
+// ---- Configurable endpoints (point these at the real orchestrator when ready) ----
+const STATUS_URL = "http://localhost:9000/status.json";
+const ATTACK_URL = "http://localhost:8787/attack";
+const APPROVE_URL = "http://localhost:8787/approve";
+// -----------------------------------------------------------------------------
+
+const PHASE_SUBTEXT = {
+  idle: "waiting",
+  attacked: "production compromised",
+  forking: "spinning up a memory fork of the live server",
+  diagnosing: "agent searching for the real root cause",
+  rehearsed: "fix tested safely on the clone",
+  approved: "human approved — applying live",
+  patched: "fix is live, no restart required",
+};
+
+let history = []; // {served, failed} deltas, last ~30
+let lastServed = null, lastFailed = null;
+let connLost = false;
+
+function setConn(lost){
+  connLost = lost;
+  document.getElementById('connIndicator').classList.toggle('show', lost);
+}
+
+function renderPhase(s){
+  const label = document.getElementById('phaseLabel');
+  label.textContent = s.phase || '—';
+  label.className = 'phase-label phase-' + (s.phase || 'idle');
+  document.getElementById('phaseSub').textContent = PHASE_SUBTEXT[s.phase] || '';
+}
+
+function renderFreeze(s){
+  const ip = s.implant_present || {};
+  const map = [
+    ['Prod', ip.production],
+    ['Clone', ip.clone],
+    ['Restart', ip.restarted],
+  ];
+  map.forEach(([key, present]) => {
+    const dot = document.getElementById('dot' + key);
+    const state = document.getElementById('state' + key);
+    dot.className = 'dot ' + (present ? 'on' : 'off');
+    state.className = 'state ' + (present ? 'on' : 'off');
+    state.textContent = present ? 'IMPLANT PRESENT' : 'clean';
+  });
+  const ms = s.fork_pause_ms || 0;
+  document.getElementById('forkPause').textContent =
+    ms > 0 ? (ms/1000).toFixed(1) + 's' : '0.0s (not yet forked)';
+}
+
+function renderProve(s){
+  const list = document.getElementById('hypList');
+  const hyps = s.hypotheses || [];
+  if (!hyps.length){
+    list.innerHTML = '<div class="empty-note">No hypotheses yet.</div>';
+  } else {
+    list.innerHTML = hyps.map(h => {
+      const ok = h.status === 'confirmed';
+      return `<div class="hyp-row">
+        <span class="badge ${ok ? 'confirmed' : 'refuted'}">${ok ? '✓ confirmed' : '✗ refuted'}</span>
+        <div class="hyp-text">
+          <div class="hyp-claim">${escapeHtml(h.claim || '')}</div>
+          <div class="hyp-url">${escapeHtml(h.url || '')}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('searchesCount').textContent =
+    (s.searches || 0) + ' search' + (s.searches === 1 ? '' : 'es') + ' made';
+
+  const callout = document.getElementById('replayCallout');
+  const r = s.exploit_replay_after_patch || 'pending';
+  if (r === 'pending'){
+    callout.className = 'replay-callout replay-pending';
+    callout.textContent = 'Exploit replay against the fix: pending…';
+  } else if (r === 'failed'){
+    callout.className = 'replay-callout replay-failed';
+    callout.textContent = '✅ Exploit replayed against the fix — it failed. The hole is closed.';
+  } else if (r === 'succeeded'){
+    callout.className = 'replay-callout replay-succeeded';
+    callout.textContent = '⚠️ Exploit replayed against the fix — it still succeeded. The hole is NOT closed.';
+  }
+}
+
+function renderOperate(s){
+  const served = s.requests_served || 0;
+  const failed = s.requests_failed || 0;
+  document.getElementById('numServed').textContent = served;
+  document.getElementById('numFailed').textContent = failed;
+
+  if (lastServed !== null){
+    history.push({
+      served: Math.max(0, served - lastServed),
+      failed: Math.max(0, failed - lastFailed),
+    });
+    if (history.length > 30) history.shift();
+  }
+  lastServed = served; lastFailed = failed;
+  drawTicker();
+
+  document.getElementById('approveBtn').disabled = (s.phase !== 'rehearsed');
+}
+
+function drawTicker(){
+  const svg = document.getElementById('ticker');
+  const w = 300, h = 70;
+  const n = Math.max(history.length, 1);
+  const barW = w / 30;
+  const maxVal = Math.max(1, ...history.map(d => d.served + d.failed));
+  let bars = '';
+  history.forEach((d, i) => {
+    const x = i * barW;
+    const totalH = ((d.served + d.failed) / maxVal) * (h - 6);
+    const failH = maxVal ? (d.failed / maxVal) * (h - 6) : 0;
+    const servedH = totalH - failH;
+    const yBase = h;
+    if (servedH > 0){
+      bars += `<rect x="${x+0.5}" y="${yBase - servedH}" width="${barW-1}" height="${servedH}" fill="var(--green)"/>`;
+    }
+    if (failH > 0){
+      bars += `<rect x="${x+0.5}" y="${yBase - totalH}" width="${barW-1}" height="${failH}" fill="var(--red)"/>`;
+    }
+  });
+  svg.innerHTML = bars;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function poll(){
+  try{
+    const res = await fetch(STATUS_URL, {cache:'no-store'});
+    if (!res.ok) throw new Error('bad status');
+    const s = await res.json();
+    setConn(false);
+    renderPhase(s);
+    renderFreeze(s);
+    renderProve(s);
+    renderOperate(s);
+  } catch(e){
+    setConn(true);
+  }
+}
+
+document.getElementById('attackBtn').addEventListener('click', async () => {
+  const variant = document.getElementById('variantSelect').value;
+  const msg = document.getElementById('attackMsg');
+  msg.textContent = 'Launching attack (payload ' + variant.toUpperCase() + ')…';
+  try{
+    const response = await fetch(ATTACK_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({variant})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Attack failed');
+    msg.textContent = 'Clone created; agent investigating payload ' + variant.toUpperCase() + '.';
+  } catch(e){
+    msg.textContent = 'Attack failed: ' + e.message;
+  }
+});
+
+document.getElementById('approveBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('approveMsg');
+  msg.textContent = 'Sending approval…';
+  try{
+    const response = await fetch(APPROVE_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Approval failed');
+    msg.textContent = 'Production patch verified.';
+  } catch(e){
+    msg.textContent = 'Approval failed: ' + e.message;
+  }
+});
+
+poll();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>

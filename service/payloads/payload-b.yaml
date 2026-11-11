@@ -1,0 +1,45 @@
+# payload-b.yaml — "single-plant" variant
+#
+# Exploits the same real, historical PyYAML arbitrary-code-execution issue as
+# payload-a.yaml: an unsafe yaml.load(raw, Loader=yaml.Loader) call lets the
+# !!python/object/apply: tag invoke any importable Python callable with
+# attacker-chosen arguments at parse time. Here it calls the builtin `exec`
+# with one short string of Python source, executed inside the Flask worker
+# process the instant this document is parsed.
+#
+# INERT / SAFE BY DESIGN:
+#   - No network I/O, no subprocess, no file access outside the running
+#     process's own memory.
+#   - Only touches the `STATE` dict that already lives in app.py's __main__
+#     module — nothing else on disk or in the environment is read or changed.
+#   - No thread, no loop, no persistence mechanism of any kind: the code runs
+#     once, writes two dict keys, and returns immediately.
+#   - This file exists purely so a live demo can discover and patch a real
+#     vulnerability class; it is not usable against any other system.
+#
+# Behavior: a single, one-shot write — sets STATE["implant_present"] = True
+# and STATE["implant_marker"] = "variant-B-single-plant" exactly once, with no
+# background activity afterward. This is deliberately different from
+# payload-a.yaml: once /_debug/patch runs (which explicitly resets
+# implant_present to False), this variant's implant_present stays False for
+# good — there is nothing left running to flip it back — and /_debug/state
+# never grows an "implant_heartbeat" counter the way payload-a.yaml's does.
+# An agent polling /_debug/state over a couple of seconds can use exactly
+# that (no heartbeat growth, and implant_present staying cleared after
+# patch) to tell this variant apart from payload-a.yaml without being told
+# which one ran.
+
+!!python/object/apply:builtins.exec
+args:
+  - |
+    import sys
+
+    _m = sys.modules.get('__main__')
+    if _m is not None:
+        _m.STATE['implant_present'] = True
+        _m.STATE['implant_marker'] = 'variant-B-single-plant'
+  - {}
+# ^ an explicit (empty) globals dict for exec(), for the same reason noted in
+# payload-a.yaml: it keeps exec()'s namespace well-defined rather than
+# depending on the caller's locals/globals split.
+

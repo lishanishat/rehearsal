@@ -1,0 +1,14 @@
+{
+  "name": "rehearsal-fork-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "tsx fork-timing-spike.ts"
+  },
+  "dependencies": {
+    "disk": "latest"
+  },
+  "devDependencies": {
+    "tsx": "latest"
+  }
+}

